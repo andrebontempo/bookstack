@@ -1,0 +1,6 @@
+# Arquivo de configuração de ambiente com credenciais sensíveis
+.env
+
+# Diretórios de dados persistidos localmente pelos containers
+bookstack-db-data/
+bookstack-app-data/
