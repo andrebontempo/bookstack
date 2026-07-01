@@ -23,6 +23,7 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      - APP_KEY=${APP_KEY}
       - APP_URL=${APP_URL}
       - APP_LANG=${APP_LANG}
       - DB_HOST=${DB_HOST}
