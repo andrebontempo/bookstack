@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Versão** | 5.0 |
-| **Data** | Julho de 2026 |
+| **Versão** | 6.0 |
+| **Data** | Setembro de 2026 |
 | **Classificação** | Interno |
 | **Organização** | Embrapa — Empresa Brasileira de Pesquisa Agropecuária |
 
@@ -16,6 +16,7 @@
 | 3.0 | Julho 2026 | André Luiz Bontempo | Reestruturação completa, eliminação de redundâncias, padronização editorial e inclusão de novos elementos |
 | 4.0 | Julho 2026 | André Luiz Bontempo | Revisão geral e adaptação da base de conhecimento para a nova estrutura de 6 Estantes (Corporativo vs. Unidades) |
 | 5.0 | Julho 2026 | André Luiz Bontempo | Inclusão do n8n como camada de orquestração, padronização "banco vetorial (Qdrant)", ajuste da Regra 80/20 e reforço do escopo exclusivo de TI |
+| 6.0 | Setembro 2026 | André Luiz Bontempo | Automação do Criador de Artigos via n8n (2 etapas, validação de e-mail e atribuição de autoria via API BookStack), inclusão do público "Artigo Restrito" (Gestores), tags nativas BookStack e regras estritas para validação de URLs e eliminação de títulos/YAML duplicados |
 
 ---
 
@@ -487,7 +488,7 @@ Valores sugeridos: `baixa`, `média`, `alta`, `crítica`. Recomendado principalm
 
 ### Marcador "Classificação" (opcional)
 
-Identifica o nível de sensibilidade do conteúdo para fins de governança e auditoria. Valores sugeridos: `pública`, `interna`, `restrita`, `confidencial`. A utilização deverá seguir a política de segurança da informação da organização.
+Identifica o nível de sensibilidade do conteúdo para fins de governança e auditoria. Valores sugeridos: `pública`, `interna`, `restrita`, `confidencial`. Quando o público-alvo selecionado no formulário for "Artigo Restrito (Gestores e Administração de TI)", adiciona-se obrigatoriamente a tag `Classificação = restrita`. A utilização deverá seguir a política de segurança da informação da organização.
 
 ## 4.4 Marcadores que NÃO Devem Ser Utilizados
 
@@ -1049,14 +1050,28 @@ Requisitos | Usuários | Permissões | Backup | Monitoramento | Referências
 ```text
 Objetivo | Recomendações | O que evitar | Checklist | Referências
 ```
-## 8.10 Templates Inteligentes
+## 8.10 Templates Inteligentes e Criador de Artigos (n8n)
 
-Como evolução dos modelos estáticos, a organização pode adotar um **Assistente de Criação de Artigos**:
+Como evolução dos modelos estáticos, a organização adotou o **Criador Inteligente de Artigos KCS** orquestrado via n8n:
 ```text
-Autor → Escolhe o tipo do artigo → IA identifica o template →
-Modelo preenchido automaticamente → Autor revisa → Publica
+Solicitante (E-mail + Público) → Validação API BookStack → Entrada (Prompt Livre / PDF) →
+Extração & Síntese por IA (Gemini) → Escolha do Template KCS + Tags Nativas →
+Publicação no BookStack + Atribuição de Proprietário (owner_id)
 ```
-Nesse cenário, o autor não precisa conhecer todos os templates. Basta informar que deseja criar um "Procedimento", um "Runbook" ou um "Incidente", e o sistema apresenta automaticamente a estrutura adequada. No futuro, esse assistente poderá sugerir títulos, metadados, artigos relacionados e identificar possíveis duplicidades antes da publicação.
+
+Nesse fluxo automatizado:
+1. **Formulário em 2 Etapas:**
+   - **Etapa 1:** Coleta o e-mail do solicitante e o público-alvo (`Usuário Final`, `Analistas e Técnicos de TI`, `Artigo Restrito (Gestores e Administração de TI)`).
+   - **Validação Automática:** O e-mail é validado via API do BookStack (`GET /api/users`), extraindo o ID do usuário. Se o e-mail não estiver cadastrado, o fluxo é interrompido por segurança.
+   - **Etapa 2:** Interface flexível aceitando tema/prompt livre, anexo em PDF (manual/especificação) ou ambos combinados.
+2. **Processamento Inteligente por IA (Gemini):**
+   - **Atuação Dual:** Sintetiza documentos PDF fornecidos ou gera artigos completos autonomamente sobre temas solicitados.
+   - **Seleção de Template:** Seleciona automaticamente o template KCS ideal no catálogo corporativo (`conceito`, `procedimento`, `incidente`, `runbook`, `tutorial`, `faq`, `referencia`).
+   - **Geração de Tags Nativas:** Cria tags nativas (`Tipo`, `Serviço`, `Público`, `Criticidade`, `Solicitante`, e `Classificação = restrita` quando aplicável).
+   - **Formatos Limpos:** NUNCA gera título `# H1` nem bloco YAML (`---`) no corpo do Markdown; inicia diretamente na primeira seção `## H2`.
+   - **Validação Estrita de Links:** PROIBIÇÃO ABSOLUTA de URLs fictícias ou placeholders; inclui apenas links oficiais reais ou cita a fonte em texto puro.
+3. **Publicação & Governança no BookStack:**
+   - A página é criada via `POST /api/pages` e a autoria/propriedade da página (`owned_by`) é atribuída imediatamente ao ID do solicitante via `PUT /api/content-permissions/page/{id}`.
 
 ---
 
@@ -1497,8 +1512,10 @@ Este anexo define o modelo oficial detalhado de metadados utilizado na Base de C
 |-------|-----------|---------|
 | `tipo` | Natureza do artigo | `conceito`, `procedimento`, `tutorial`, `incidente`, `runbook`, `faq`, `referencia` |
 | `serviço` | Serviço de TI relacionado | Google Workspace, Docker, VPN, PostgreSQL, TOPdesk, Backup... |
-| `público` | Público-alvo | `usuario-final`, `equipe-ti`, `administrador`, `gestor` |
+| `público` | Público-alvo | `Usuário Final`, `Analistas e Técnicos de TI`, `Artigo Restrito (Gestores e Administração de TI)` |
 | `criticidade` | Importância operacional | `baixa`, `media`, `alta`, `critica` |
+| `solicitante` | E-mail do criador | e-mail corporativo do usuário (ex: `nome.sobrenome@embrapa.br`) |
+| `classificação` | Sensibilidade | `restrita` (para Artigo Restrito), `interna`, `pública` |
 
 ### Metadados Recomendados
 
